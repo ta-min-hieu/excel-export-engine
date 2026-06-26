@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
-import com.example.demo.common.*;
+import com.example.demo.common.excel.engine.config.ExportConfig;
+import com.example.demo.common.excel.engine.core.ExcelExportEngine;
+import com.example.demo.common.excel.engine.core.WorkbookExport;
 import com.example.demo.config.ExcelExportConfig;
 import com.example.demo.dto.MyExport2Dto;
 import com.example.demo.dto.MyExportDto;
@@ -30,7 +32,7 @@ public class ExportExcelServiceImpl implements ExportExcelService {
     @PostConstruct
     public void init() {
         exportConfig = new ExportConfig();
-        exportConfig.setBatchSize(excelExportConfig.getBatchSize());
+//        exportConfig.setBatchSize(excelExportConfig.getBatchSize());
         exportConfig.setWindowSize(excelExportConfig.getWindowSize());
     }
 
@@ -46,11 +48,11 @@ public class ExportExcelServiceImpl implements ExportExcelService {
             MyExportDto dto1 = new MyExportDto();
             dto1.setStartDate(LocalDate.now().minusDays(1));
             dto1.setEndDate(LocalDate.now());
-            dto1.setDatas(repo.fetchBatch(0, exportConfig.getBatchSize()));
+            dto1.setDatas(repo.fetchBatch(0, excelExportConfig.getBatchSize()));
 
             MyExport2Dto dto2 = new MyExport2Dto();
             dto2.setName("hieu.tm");
-            dto2.setD(repo2.fetchBatch(0, exportConfig.getBatchSize()));
+            dto2.setD(repo2.fetchBatch(0, excelExportConfig.getBatchSize()));
 
             // =========================
             // BUILD WORKBOOK EXPORT

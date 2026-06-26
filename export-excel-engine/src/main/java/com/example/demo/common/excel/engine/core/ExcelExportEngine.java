@@ -1,5 +1,8 @@
-package com.example.demo.common;
+package com.example.demo.common.excel.engine.core;
 
+import com.example.demo.common.excel.engine.config.ExportConfig;
+import com.example.demo.common.excel.engine.metadata.ListColumnMeta;
+import com.example.demo.common.excel.engine.metadata.VariableValue;
 import lombok.extern.log4j.Log4j2;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
@@ -11,8 +14,8 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.regex.Matcher;
 
-import static com.example.demo.common.ExportConstants.*;
-import static com.example.demo.common.MetadataFactory.resolveType;
+import static com.example.demo.common.excel.engine.config.ExportConstants.*;
+import static com.example.demo.common.excel.engine.metadata.MetadataFactory.resolveType;
 
 @Log4j2
 public class ExcelExportEngine {
@@ -123,14 +126,12 @@ public class ExcelExportEngine {
     private void scanTemplate(Sheet sheet, SheetContext context) {
         for (Row row : sheet) {
             for (Cell cell : row) {
-                if (cell.getCellType() != CellType.STRING)
-                    continue;
+                if (cell.getCellType() != CellType.STRING) continue;
 
                 String text = cell.getStringCellValue();
                 Matcher matcher = DATA_PATTERN.matcher(text);
 
-                if (!matcher.matches())
-                    continue;
+                if (!matcher.matches()) continue;
 
                 String expr = matcher.group(1);
                 Matcher listMatcher = LIST_PATTERN.matcher(expr);
@@ -197,13 +198,11 @@ public class ExcelExportEngine {
                 field.setAccessible(true);
                 Object value = field.get(obj);
 
-                if (value == null)
-                    continue;
+                if (value == null) continue;
 
-                if (Collection.class.isAssignableFrom(field.getType()))
-                    continue;
+                if (Collection.class.isAssignableFrom(field.getType())) continue;
 
-                variables.put(field.getName(), new VariableValue(value, MetadataFactory.resolveType(field.getType())));
+                variables.put(field.getName(), new VariableValue(value, resolveType(field.getType())));
             }
 
         } catch (Exception e) {
@@ -219,8 +218,7 @@ public class ExcelExportEngine {
                 field.setAccessible(true);
                 Object value = field.get(exportDto);
 
-                if (!(value instanceof List<?> list))
-                    continue;
+                if (!(value instanceof List<?> list)) continue;
 
                 context.getListDataCache().put(field.getName(), list);
             }
@@ -240,8 +238,7 @@ public class ExcelExportEngine {
         for (Map.Entry<String, List<?>> entry : dataCache.entrySet()) {
             List<?> datas = entry.getValue();
 
-            if (datas == null || datas.isEmpty())
-                continue;
+            if (datas == null || datas.isEmpty()) continue;
 
             Object firstItem = datas.get(0);
 
@@ -260,9 +257,7 @@ public class ExcelExportEngine {
 
             List<?> datas = entry.getValue();
 
-            if (datas == null || datas.size() <= 1) {
-                continue;
-            }
+            if (datas == null || datas.size() <= 1) continue;
 
             for (int i = 1; i < datas.size(); i++) {
 
@@ -278,13 +273,11 @@ public class ExcelExportEngine {
     }
 
     private void writeDataObject(Row row, Object item, String listName, SheetContext context) {
-        if (item == null)
-            return;
+        if (item == null) return;
 
         List<ListColumnMeta> columns = context.getListColumns().get(listName);
 
-        if (columns == null || columns.isEmpty())
-            return;
+        if (columns == null || columns.isEmpty()) return;
 
         Class<?> itemClass = item.getClass();
 
@@ -302,8 +295,7 @@ public class ExcelExportEngine {
             try {
                 Field field = getFieldCached(itemClass, meta.fieldName());
 
-                if (field == null)
-                    continue;
+                if (field == null) continue;
 
                 field.setAccessible(true);
                 Object value = field.get(item);

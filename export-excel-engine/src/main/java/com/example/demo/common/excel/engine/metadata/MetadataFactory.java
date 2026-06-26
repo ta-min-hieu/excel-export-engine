@@ -1,4 +1,4 @@
-package com.example.demo.common;
+package com.example.demo.common.excel.engine.metadata;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -43,7 +43,7 @@ public class MetadataFactory {
         }
     }
 
-    static ColumnType resolveType(Class<?> type) {
+    public static ColumnType resolveType(Class<?> type) {
 
         if (type == String.class) return ColumnType.STRING;
         if (type == Long.class || type == long.class) return ColumnType.LONG;
