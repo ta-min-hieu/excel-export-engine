@@ -277,27 +277,6 @@ public class ExcelExportEngine {
         context.setTemplateRowIndex(rowIndex);
     }
 
-//    private void writeRemainingRows2(Sheet sheet, SheetContext context) {
-//        int templateRowIndex = context.getTemplateRowIndex();
-//        int rowIndex = templateRowIndex + 1;
-//
-//        for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
-//
-//            List<?> datas = entry.getValue();
-//
-//            if (datas == null || datas.size() <= 1)
-//                continue;
-//
-//            for (int i = 1; i < datas.size(); i++) {
-//                Object item = datas.get(i);
-//                Row row = sxssfSheet.createRow(rowIndex++);
-//                writeDataObject(row, item, entry.getKey());
-//            }
-//        }
-//
-//        templateRowIndex = rowIndex;
-//    }
-
     private void writeDataObject(Row row, Object item, String listName, SheetContext context) {
         if (item == null)
             return;

@@ -1,4 +1,4 @@
-package com.example.demo.common;
+package com.example.demo.repository;
 
 import com.example.demo.dto.MyDto;
 
@@ -10,14 +10,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class FakeMyDtoRepository {
+public class FakeMyDto2Repository {
 
     private static final List<MyDto> DB = new ArrayList<>();
 
     static {
         Random random = new Random();
 
-        for (long i = 1; i <= 10_000; i++) {
+        for (long i = 1; i <= 1_000; i++) {
             DB.add(new MyDto(
                     i,
                     "user_" + i,

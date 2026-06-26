@@ -1,4 +1,4 @@
-package com.example.demo.common;
+package com.example.demo.repository;
 
 import com.example.demo.dto.MyDto;
 
@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class FakeMyDto2Repository {
+public class FakeMyDtoRepository {
 
     private static final List<MyDto> DB = new ArrayList<>();
 

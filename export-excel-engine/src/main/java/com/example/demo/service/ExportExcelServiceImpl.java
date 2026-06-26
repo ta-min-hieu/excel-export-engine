@@ -4,6 +4,9 @@ import com.example.demo.common.*;
 import com.example.demo.config.ExcelExportConfig;
 import com.example.demo.dto.MyExport2Dto;
 import com.example.demo.dto.MyExportDto;
+import com.example.demo.repository.FakeMyDto2Repository;
+import com.example.demo.repository.FakeMyDtoRepository;
+import com.example.demo.ultils.TemplateConstants;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -13,12 +16,13 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Log4j2
 @Service
 @RequiredArgsConstructor
 public class ExportExcelServiceImpl implements ExportExcelService {
-    private static final String FILE_PATH = "D:/excel-export-file/report.xlsx";
+    private static final String FILE_PATH = "D:/excel-export-file/";
 
     private final ExcelExportConfig excelExportConfig;
     private ExportConfig exportConfig;
@@ -34,7 +38,7 @@ public class ExportExcelServiceImpl implements ExportExcelService {
     public void handleExport() throws Exception {
         try (
                 InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V4);
-                OutputStream os = new FileOutputStream(FILE_PATH)
+                OutputStream os = new FileOutputStream(FILE_PATH + UUID.randomUUID() + ".xlsx");
         ) {
             FakeMyDtoRepository repo = new FakeMyDtoRepository();
             FakeMyDto2Repository repo2 = new FakeMyDto2Repository();
