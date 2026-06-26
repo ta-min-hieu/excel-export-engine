@@ -2,13 +2,20 @@ package com.example.demo.common;
 
 public enum ColumnType {
     STRING,
-    LONG,
     INTEGER,
+    LONG,
+    SHORT,
+    BYTE,
+    FLOAT,
     DOUBLE,
-    BOOLEAN,
-    DATE,
     BIG_DECIMAL,
+    BIG_INTEGER,
+    BOOLEAN,
+    CHARACTER,
     LOCAL_DATE,
     LOCAL_DATE_TIME,
+    LOCAL_TIME,
+    DATE,
+    ENUM,
     OBJECT
 }

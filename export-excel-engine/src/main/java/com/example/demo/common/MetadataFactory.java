@@ -5,8 +5,10 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 
 public class MetadataFactory {
@@ -28,24 +30,17 @@ public class MetadataFactory {
 
             for (Field f : fields) {
 
-                if (Modifier.isStatic(f.getModifiers())
-                        || Modifier.isTransient(f.getModifiers())) {
+                if (Modifier.isStatic(f.getModifiers()) || Modifier.isTransient(f.getModifiers()))
                     continue;
-                }
 
                 f.setAccessible(true);
 
                 MethodHandle getter = lookup.unreflectGetter(f);
 
-                list.add(new ColumnMeta(
-                        index++,
-                        getter,
-                        resolveType(f.getType())
-                ));
+                list.add(new ColumnMeta(index++, getter, resolveType(f.getType())));
             }
 
             return list;
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -62,6 +57,13 @@ public class MetadataFactory {
         if (type == BigDecimal.class) return ColumnType.BIG_DECIMAL;
         if (type == LocalDate.class) return ColumnType.LOCAL_DATE;
         if (type == LocalDateTime.class) return ColumnType.LOCAL_DATE_TIME;
+        if (type == Short.class || type == short.class) return ColumnType.SHORT;
+        if (type == Byte.class || type == byte.class) return ColumnType.BYTE;
+        if (type == Float.class || type == float.class) return ColumnType.FLOAT;
+        if (type == BigInteger.class) return ColumnType.BIG_INTEGER;
+        if (type == Character.class || type == char.class) return ColumnType.CHARACTER;
+        if (type == LocalTime.class) return ColumnType.LOCAL_TIME;
+        if (type.isEnum()) return ColumnType.ENUM;
 
         return ColumnType.OBJECT;
     }

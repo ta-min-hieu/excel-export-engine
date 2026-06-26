@@ -20,7 +20,6 @@ public class ExcelExportEngine {
     private Sheet sxssfSheet;
     private final XSSFWorkbook xssfWorkbook;
     private final Sheet xssfSheet;
-    private final Map<Integer, CellStyle> styleCache = new HashMap<>();
     private final ExportConfig config;
     private final int sheetAt;
 
@@ -61,17 +60,21 @@ public class ExcelExportEngine {
     }
 
     private void writeRemainingRows() {
-        List<?> datas = listDataCache.get("datas");
-
-        if (datas == null || datas.size() <= 1)
-            return;
 
         int rowIndex = templateRowIndex + 1;
 
-        for (int i = 1; i < datas.size(); i++) {
-            Object item = datas.get(i);
-            Row row = sxssfSheet.createRow(rowIndex++);
-            writeDataObject(row, item, "datas");
+        for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
+
+            List<?> datas = entry.getValue();
+
+            if (datas == null || datas.size() <= 1)
+                continue;
+
+            for (int i = 1; i < datas.size(); i++) {
+                Object item = datas.get(i);
+                Row row = sxssfSheet.createRow(rowIndex++);
+                writeDataObject(row, item, entry.getKey());
+            }
         }
 
         templateRowIndex = rowIndex;
@@ -79,35 +82,30 @@ public class ExcelExportEngine {
 
     private void writeFirstDataRow() {
 
-        List<?> datas = listDataCache.get("datas");
-
-        if (datas == null || datas.isEmpty())
-            return;
-
-        Object firstItem = datas.get(0);
-
         Row row = xssfSheet.getRow(templateRowIndex);
 
-        if (row == null) {
+        if (row == null)
             row = xssfSheet.createRow(templateRowIndex);
-        }
 
-        writeDataObject(row, firstItem, "datas");
+        for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
+            List<?> datas = entry.getValue();
+
+            if (datas == null || datas.isEmpty())
+                continue;
+
+            Object firstItem = datas.get(0);
+
+            writeDataObject(row, firstItem, entry.getKey());
+        }
     }
 
-    private void writeDataObject(
-            Row row,
-            Object item,
-            String listName
-    ) {
+    private void writeDataObject(Row row, Object item, String listName) {
         List<ListColumnMeta> columns = listColumns.get(listName);
 
-        if (columns == null) {
+        if (columns == null)
             return;
-        }
 
         for (ListColumnMeta meta : columns) {
-
             Cell cell = row.getCell(meta.columnIndex());
 
             if (cell == null)
@@ -166,12 +164,7 @@ public class ExcelExportEngine {
 
                 listColumns
                         .computeIfAbsent(listName, k -> new ArrayList<>())
-                        .add(new ListColumnMeta(
-                                cell.getColumnIndex(),
-                                listName,
-                                fieldName,
-                                cell.getCellStyle()
-                        ));
+                        .add(new ListColumnMeta(cell.getColumnIndex(), listName, fieldName, cell.getCellStyle()));
             }
         }
 
@@ -183,50 +176,50 @@ public class ExcelExportEngine {
         replaceVariables(extractVariables(exportDto));
     }
 
-    public void replaceVariables(Map<String, Object> variables) {
+    public void replaceVariables(Map<String, VariableValue> variables) {
         for (Sheet sheet : xssfWorkbook) {
             for (Row row : sheet) {
                 for (Cell cell : row) {
                     if (cell.getCellType() != CellType.STRING)
                         continue;
 
-                    String text = cell.getStringCellValue();
+                    String text = cell.getStringCellValue().trim();
+
                     Matcher matcher = GLOBAL_PATTERN.matcher(text);
-                    StringBuilder sb = new StringBuilder();
-                    boolean found = false;
 
-                    while (matcher.find()) {
-                        found = true;
-                        String key = matcher.group(1);
-                        Object value = variables.get(key);
-                        matcher.appendReplacement(sb, value == null ? "" : Matcher.quoteReplacement(value.toString()));
-                    }
+                    if (!matcher.matches())
+                        continue;
 
-                    if (found) {
-                        matcher.appendTail(sb);
-                        cell.setCellValue(sb.toString());
-                    }
+                    String key = matcher.group(1);
+
+                    VariableValue variable = variables.get(key);
+
+                    if (variable == null)
+                        continue;
+
+                    CellWriter.write(cell, variable.value(), variable.type());
                 }
             }
         }
     }
 
-    private Map<String, Object> extractVariables(Object obj) {
-        Map<String, Object> variables = new HashMap<>();
+    private Map<String, VariableValue> extractVariables(Object obj) {
+        Map<String, VariableValue> variables = new HashMap<>();
 
         try {
             for (Field field : obj.getClass().getDeclaredFields()) {
                 field.setAccessible(true);
+
                 Object value = field.get(obj);
 
                 if (value == null)
                     continue;
 
-                // bỏ qua List, Set, Collection...
+                // bỏ qua List, Set...
                 if (Collection.class.isAssignableFrom(field.getType()))
                     continue;
 
-                variables.put(field.getName(), value);
+                variables.put(field.getName(), new VariableValue(value, MetadataFactory.resolveType(field.getType())));
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
