@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-public class FakeMyDtoRepository {
+public class FakeMyDto2Repository {
 
     private static final List<MyDto> DB = new ArrayList<>();
 

@@ -1,10 +1,8 @@
 package com.example.demo.service;
 
-import com.example.demo.common.ExcelExportEngine;
-import com.example.demo.common.ExportConfig;
-import com.example.demo.common.FakeMyDtoRepository;
-import com.example.demo.common.TemplateConstants;
+import com.example.demo.common.*;
 import com.example.demo.config.ExcelExportConfig;
+import com.example.demo.dto.MyExport2Dto;
 import com.example.demo.dto.MyExportDto;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -34,27 +32,33 @@ public class ExportExcelServiceImpl implements ExportExcelService {
 
     @Override
     public void handleExport() throws Exception {
-        handleExport(0);
-    }
-
-    @Override
-    public void handleExport(int sheetAt) throws Exception {
         try (
-                InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V3);
+                InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V4);
                 OutputStream os = new FileOutputStream(FILE_PATH)
         ) {
-            MyExportDto dto = new MyExportDto();
-
-            ExcelExportEngine engine = new ExcelExportEngine(exportConfig, template, sheetAt);
-
             FakeMyDtoRepository repo = new FakeMyDtoRepository();
+            FakeMyDto2Repository repo2 = new FakeMyDto2Repository();
 
-            dto.setStartDate(LocalDate.now().minusDays(1));
-            dto.setEndDate(LocalDate.now());
-            dto.setDatas(repo.fetchBatch(0, exportConfig.getBatchSize()));
+            MyExportDto dto1 = new MyExportDto();
+            dto1.setStartDate(LocalDate.now().minusDays(1));
+            dto1.setEndDate(LocalDate.now());
+            dto1.setDatas(repo.fetchBatch(0, exportConfig.getBatchSize()));
 
-            engine.write(dto);   // 👈 CORE CALL
+            MyExport2Dto dto2 = new MyExport2Dto();
+            dto2.setName("hieu.tm");
+            dto2.setD(repo2.fetchBatch(0, exportConfig.getBatchSize()));
 
+            // =========================
+            // BUILD WORKBOOK EXPORT
+            // =========================
+            WorkbookExport workbook = WorkbookExport.builder()
+                    .sheet(0, dto1)
+                    .sheet(1, dto2)
+                    .build();
+
+            ExcelExportEngine engine = new ExcelExportEngine(exportConfig, template);
+
+            engine.write(workbook);
             engine.finish(os);
         } catch (Exception e) {
             log.error(e.getMessage(), e);

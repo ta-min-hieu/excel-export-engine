@@ -16,228 +16,520 @@ import static com.example.demo.common.MetadataFactory.resolveType;
 
 @Log4j2
 public class ExcelExportEngine {
+
     private SXSSFWorkbook sxssfWorkbook;
-    private Sheet sxssfSheet;
+
     private final XSSFWorkbook xssfWorkbook;
-    private final Sheet xssfSheet;
+
     private final ExportConfig config;
-    private final int sheetAt;
+    private final Map<Class<?>, Map<String, Field>> fieldCache = new HashMap<>();
+    private int templateRowIndexEnd = -1;
 
-    // Dòng chứa *{}
-    private int templateRowIndex = -1;
-    // Metadata của các cột data
-    private final Map<String, List<ListColumnMeta>> listColumns = new HashMap<>();
-    private final Map<String, List<?>> listDataCache = new HashMap<>();
+    public ExcelExportEngine(
+            ExportConfig config,
+            InputStream templateStream
+    ) throws Exception {
 
-    public ExcelExportEngine(ExportConfig config, InputStream templateStream) throws Exception {
-        this(config, templateStream, 0);
-    }
-
-    public ExcelExportEngine(ExportConfig config, InputStream templateStream, int sheetAt) throws Exception {
-        xssfWorkbook = new XSSFWorkbook(templateStream);
-
-        if (xssfWorkbook.getNumberOfSheets() == 0)
-            throw new IllegalArgumentException("Workbook has no sheet");
-
-        this.xssfSheet = xssfWorkbook.getSheetAt(sheetAt);
         this.config = config;
-        this.sheetAt = sheetAt;
-    }
+        this.xssfWorkbook = new XSSFWorkbook(templateStream);
 
-    public void write(Object exportObj) {
-        scanTemplate();
-        replaceVariables(exportObj);
-        cacheLists(exportObj);
-
-        // ghi dòng đầu bằng XSSF
-        writeFirstDataRow();
-
-        sxssfWorkbook = new SXSSFWorkbook(xssfWorkbook, config.getWindowSize());
-        sxssfSheet = sxssfWorkbook.getSheetAt(sheetAt);
-
-        // bắt đầu từ phần tử thứ 2
-        writeRemainingRows();
-    }
-
-    private void writeRemainingRows() {
-        int rowIndex = templateRowIndex + 1;
-
-        for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
-
-            List<?> datas = entry.getValue();
-
-            if (datas == null || datas.size() <= 1)
-                continue;
-
-            for (int i = 1; i < datas.size(); i++) {
-                Object item = datas.get(i);
-                Row row = sxssfSheet.createRow(rowIndex++);
-                writeDataObject(row, item, entry.getKey());
-            }
-        }
-
-        templateRowIndex = rowIndex;
-    }
-
-    private void writeFirstDataRow() {
-        Row row = xssfSheet.getRow(templateRowIndex);
-
-        if (row == null)
-            row = xssfSheet.createRow(templateRowIndex);
-
-        for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
-            List<?> datas = entry.getValue();
-
-            if (datas == null || datas.isEmpty())
-                continue;
-
-            Object firstItem = datas.get(0);
-
-            writeDataObject(row, firstItem, entry.getKey());
+        if (xssfWorkbook.getNumberOfSheets() == 0) {
+            throw new IllegalArgumentException("Workbook has no sheet");
         }
     }
 
-    private void writeDataObject(Row row, Object item, String listName) {
-        List<ListColumnMeta> columns = listColumns.get(listName);
+    /**
+     * Export toàn bộ workbook.
+     */
+    public void write(WorkbookExport workbookExport) {
 
-        if (columns == null)
-            return;
+        Objects.requireNonNull(workbookExport, "WorkbookExport must not be null");
 
-        for (ListColumnMeta meta : columns) {
-            Cell cell = row.getCell(meta.columnIndex());
+        for (SheetExport<?> sheetExport : workbookExport.getSheets()) {
 
-            if (cell == null)
-                cell = row.createCell(meta.columnIndex());
-
-            cell.setCellStyle(meta.style());
-
-            try {
-                Field field = item.getClass().getDeclaredField(meta.fieldName());
-                field.setAccessible(true);
-                Object value = field.get(item);
-                CellWriter.write(cell, value, resolveType(field.getType()));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            writeSheet(
+                    sheetExport.getSheetIndex(),
+                    sheetExport.getData()
+            );
         }
+
+        // Sau khi toàn bộ sheet đã được ghi bằng XSSF
+        // mới chuyển sang SXSSF để giảm memory khi ghi file.
+        sxssfWorkbook = new SXSSFWorkbook(
+                xssfWorkbook,
+                config.getWindowSize()
+        );
     }
 
-    // =========================
-    // FINISH
-    // =========================
+    /**
+     * Export một sheet.
+     */
+    private void writeSheet(
+            int sheetIndex,
+            Object exportDto
+    ) {
+
+        Sheet sheet = xssfWorkbook.getSheetAt(sheetIndex);
+
+        if (sheet == null) {
+            throw new IllegalArgumentException(
+                    "Sheet index " + sheetIndex + " not found."
+            );
+        }
+
+        SheetContext context = new SheetContext();
+
+        //----------------------------------
+        // 1. Scan template
+        //----------------------------------
+        scanTemplate(
+                sheet,
+                context
+        );
+
+        //----------------------------------
+        // 2. Replace ${}
+        //----------------------------------
+        replaceVariables(
+                sheet,
+                exportDto
+        );
+
+        //----------------------------------
+        // 3. Cache list
+        //----------------------------------
+        cacheLists(
+                exportDto,
+                context
+        );
+
+        //----------------------------------
+        // 4. Write first row
+        //----------------------------------
+        writeFirstDataRow(
+                sheet,
+                context
+        );
+
+        //----------------------------------
+        // 5. Remaining rows
+        //----------------------------------
+        writeRemainingRows(
+                sheet,
+                context
+        );
+    }
+
+    /**
+     * Ghi workbook ra OutputStream.
+     */
     public void finish(OutputStream os) {
+
+        if (sxssfWorkbook == null) {
+            throw new IllegalStateException(
+                    "Please call write() before finish()."
+            );
+        }
+
         try {
+
             sxssfWorkbook.write(os);
-            sxssfWorkbook.dispose();
-            sxssfWorkbook.close();
+
+            os.flush();
+
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+
+            try {
+                sxssfWorkbook.dispose();
+            } catch (Exception ignore) {}
+
+            try {
+                sxssfWorkbook.close();
+            } catch (Exception ignore) {}
+
+            try {
+                xssfWorkbook.close();
+            } catch (Exception ignore) {}
+
+            sxssfWorkbook = null;
         }
     }
 
-    private void scanTemplate() {
-        for (Row row : xssfSheet) {
+    private void scanTemplate(
+            Sheet sheet,
+            SheetContext context
+    ) {
+
+        for (Row row : sheet) {
+
             for (Cell cell : row) {
-                if (cell.getCellType() != CellType.STRING)
+
+                if (cell.getCellType() != CellType.STRING) {
                     continue;
+                }
 
                 String text = cell.getStringCellValue();
+
                 Matcher matcher = DATA_PATTERN.matcher(text);
 
-                if (!matcher.matches())
+                if (!matcher.matches()) {
                     continue;
+                }
 
                 String expr = matcher.group(1);
 
                 Matcher listMatcher = LIST_PATTERN.matcher(expr);
 
-                if (!listMatcher.matches())
-                    throw new RuntimeException("Invalid list expression: " + expr);
+                if (!listMatcher.matches()) {
+                    throw new RuntimeException(
+                            "Invalid list expression : " + expr
+                    );
+                }
 
                 String listName = listMatcher.group(1);
+
                 String fieldName = listMatcher.group(2);
 
-                if (templateRowIndex == -1)
-                    templateRowIndex = row.getRowNum();
+                int rowNum = row.getRowNum();
 
-                listColumns
-                        .computeIfAbsent(listName, k -> new ArrayList<>())
-                        .add(new ListColumnMeta(cell.getColumnIndex(), listName, fieldName, cell.getCellStyle()));
-            }
-        }
-
-        if (templateRowIndex == -1)
-            throw new RuntimeException("No *{list.field} row found");
-    }
-
-    public void replaceVariables(Object exportDto) {
-        replaceVariables(extractVariables(exportDto));
-    }
-
-    public void replaceVariables(Map<String, VariableValue> variables) {
-        for (Sheet sheet : xssfWorkbook) {
-            for (Row row : sheet) {
-                for (Cell cell : row) {
-                    if (cell.getCellType() != CellType.STRING)
-                        continue;
-
-                    String text = cell.getStringCellValue().trim();
-
-                    Matcher matcher = GLOBAL_PATTERN.matcher(text);
-
-                    if (!matcher.matches())
-                        continue;
-
-                    String key = matcher.group(1);
-
-                    VariableValue variable = variables.get(key);
-
-                    if (variable == null)
-                        continue;
-
-                    CellWriter.write(cell, variable.value(), variable.type());
+                if (context.getTemplateRowIndex() == -1) {
+                    context.setTemplateRowIndex(rowNum);
                 }
+
+                context.setTemplateRowIndex(Math.max(
+                        context.getTemplateRowIndex(),
+                        rowNum
+                ));
+
+                context.getListColumns()
+
+                        .computeIfAbsent(
+                                listName,
+                                k -> new ArrayList<>()
+                        )
+
+                        .add(
+                                new ListColumnMeta(
+                                        cell.getColumnIndex(),
+                                        listName,
+                                        fieldName,
+                                        cell.getCellStyle()
+                                )
+                        );
             }
+        }
+
+        if (context.getTemplateRowIndex() == -1) {
+            throw new RuntimeException(
+                    "No *{list.field} row found."
+            );
         }
     }
 
-    private Map<String, VariableValue> extractVariables(Object obj) {
-        Map<String, VariableValue> variables = new HashMap<>();
+    private void replaceVariables(
+            Sheet sheet,
+            Object exportDto
+    ) {
+
+        replaceVariables(
+                sheet,
+                extractVariables(exportDto)
+        );
+
+    }
+
+    private void replaceVariables(
+            Sheet sheet,
+            Map<String, VariableValue> variables
+    ) {
+
+        int firstRow = 0;
+        int lastRow = sheet.getLastRowNum();
+
+        for (int i = firstRow; i <= lastRow; i++) {
+
+            Row row = sheet.getRow(i);
+
+            if (row == null) continue;
+
+            for (Cell cell : row) {
+
+                if (cell.getCellType() != CellType.STRING) continue;
+
+                String text = cell.getStringCellValue().trim();
+
+                Matcher matcher = GLOBAL_PATTERN.matcher(text);
+
+                if (!matcher.matches()) continue;
+
+                String key = matcher.group(1);
+
+                VariableValue variable = variables.get(key);
+
+                if (variable == null) continue;
+
+                CellWriter.write(cell, variable.value(), variable.type());
+            }
+        }
+
+    }
+
+    private Map<String, VariableValue> extractVariables(
+            Object obj
+    ) {
+
+        Map<String, VariableValue> variables =
+                new HashMap<>();
 
         try {
+
             for (Field field : obj.getClass().getDeclaredFields()) {
+
                 field.setAccessible(true);
 
                 Object value = field.get(obj);
 
-                if (value == null)
+                if (value == null) {
                     continue;
+                }
 
-                // bỏ qua List, Set...
-                if (Collection.class.isAssignableFrom(field.getType()))
+                if (Collection.class.isAssignableFrom(
+                        field.getType())) {
                     continue;
+                }
 
-                variables.put(field.getName(), new VariableValue(value, MetadataFactory.resolveType(field.getType())));
+                variables.put(
+
+                        field.getName(),
+
+                        new VariableValue(
+                                value,
+                                MetadataFactory.resolveType(
+                                        field.getType()
+                                )
+                        )
+                );
             }
+
         } catch (Exception e) {
+
             throw new RuntimeException(e);
+
         }
 
         return variables;
     }
 
-    private void cacheLists(Object obj) {
-        for (Field field : obj.getClass().getDeclaredFields()) {
-            field.setAccessible(true);
+    private void cacheLists(
+            Object exportDto,
+            SheetContext context
+    ) {
 
-            try {
-                Object value = field.get(obj);
+        try {
 
-                if (value instanceof List<?> list)
-                    listDataCache.put(field.getName(), list);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            for (Field field :
+                    exportDto.getClass().getDeclaredFields()) {
+
+                field.setAccessible(true);
+
+                Object value = field.get(exportDto);
+
+                if (!(value instanceof List<?> list)) {
+                    continue;
+                }
+
+                context.getListDataCache()
+                        .put(
+                                field.getName(),
+                                list
+                        );
+            }
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(e);
+
+        }
+
+    }
+
+    private void writeFirstDataRow(
+            Sheet sheet,
+            SheetContext context
+    ) {
+
+        Row row = sheet.getRow(context.getTemplateRowIndex());
+
+        if (row == null) {
+            row = sheet.createRow(context.getTemplateRowIndex());
+        }
+
+        Map<String, List<?>> dataCache = context.getListDataCache();
+
+        for (Map.Entry<String, List<?>> entry : dataCache.entrySet()) {
+
+            List<?> datas = entry.getValue();
+
+            if (datas == null || datas.isEmpty()) {
+                continue;
+            }
+
+            Object firstItem = datas.get(0);
+
+            writeDataObject(
+                    row,
+                    firstItem,
+                    entry.getKey(),
+                    context
+            );
+        }
+    }
+
+    private void writeRemainingRows(
+            Sheet sheet,
+            SheetContext context
+    ) {
+
+        int rowIndex = context.getTemplateRowIndex() + 1;
+
+        Map<String, List<?>> dataCache = context.getListDataCache();
+
+        for (Map.Entry<String, List<?>> entry : dataCache.entrySet()) {
+
+            List<?> datas = entry.getValue();
+
+            if (datas == null || datas.size() <= 1) {
+                continue;
+            }
+
+            for (int i = 1; i < datas.size(); i++) {
+
+                Object item = datas.get(i);
+
+                Row row = sheet.createRow(rowIndex++);
+
+                writeDataObject(
+                        row,
+                        item,
+                        entry.getKey(),
+                        context
+                );
             }
         }
+
+        context.setTemplateRowIndex(rowIndex);
+    }
+
+    private void writeDataObject(
+            Row row,
+            Object item,
+            String listName,
+            SheetContext context
+    ) {
+
+        if (item == null) {
+            return;
+        }
+
+        List<ListColumnMeta> columns =
+                context.getListColumns().get(listName);
+
+        if (columns == null || columns.isEmpty()) {
+            return;
+        }
+
+        Class<?> itemClass = item.getClass();
+
+        for (ListColumnMeta meta : columns) {
+
+            int col = meta.columnIndex();
+
+            Cell cell = row.getCell(col);
+            if (cell == null) {
+                cell = row.createCell(col);
+            }
+
+            // giữ style từ template
+            if (meta.style() != null) {
+                cell.setCellStyle(meta.style());
+            }
+
+            try {
+
+                Field field = getFieldCached(itemClass, meta.fieldName());
+
+                if (field == null) {
+                    continue;
+                }
+
+                field.setAccessible(true);
+
+                Object value = field.get(item);
+
+                CellWriter.write(
+                        cell,
+                        value,
+                        resolveType(field.getType())
+                );
+
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        "Error writing cell at column "
+                                + meta.columnIndex()
+                                + " field "
+                                + meta.fieldName(),
+                        e
+                );
+            }
+        }
+    }
+
+    private Field findField(Class<?> type, String fieldName) {
+
+        Class<?> current = type;
+
+        while (current != null && current != Object.class) {
+
+            try {
+                Field field = current.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException ignored) {
+                // tiếp tục tìm ở superclass
+            }
+
+            current = current.getSuperclass();
+        }
+
+        throw new RuntimeException(
+                "Field not found: " + fieldName + " in " + type.getName()
+        );
+    }
+
+    private Field getFieldCached(Class<?> clazz, String fieldName) {
+
+        return fieldCache
+                .computeIfAbsent(clazz, c -> new HashMap<>())
+                .computeIfAbsent(fieldName, f -> {
+
+                    Class<?> current = clazz;
+
+                    while (current != null && current != Object.class) {
+
+                        try {
+                            Field field = current.getDeclaredField(fieldName);
+                            field.setAccessible(true);
+                            return field;
+                        } catch (NoSuchFieldException ignored) {
+                            current = current.getSuperclass();
+                        }
+                    }
+
+                    throw new RuntimeException(
+                            "Field not found: " + fieldName + " in " + clazz.getName()
+                    );
+                });
     }
 }

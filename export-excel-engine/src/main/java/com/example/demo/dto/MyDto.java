@@ -22,4 +22,5 @@ public class MyDto {
     private LocalDateTime createdAt;
     private Double score;
     private String note;
+    private String phoneNumber;
 }
