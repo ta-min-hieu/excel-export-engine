@@ -1,18 +1,17 @@
 package com.example.demo.common;
 
+import lombok.Getter;
+
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
 public class WorkbookExport {
 
     private final List<SheetExport<?>> sheets;
 
     private WorkbookExport(Builder builder) {
         this.sheets = builder.sheets;
-    }
-
-    public List<SheetExport<?>> getSheets() {
-        return sheets;
     }
 
     public static Builder builder() {

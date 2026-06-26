@@ -17,13 +17,14 @@ public class TestExportController {
     private final ExportExcelService exportExcelService;
 
     @GetMapping("/export")
-    public ResponseEntity<String> export() throws Exception {
+    public ResponseEntity<?> export() throws Exception {
         long start = System.currentTimeMillis();
 
         exportExcelService.handleExport();
 
-        log.info("End: {} ms", System.currentTimeMillis() - start);
+        long end = System.currentTimeMillis() - start;
+        log.info("End: {} ms", end);
 
-        return new ResponseEntity<>("success", HttpStatus.OK);
+        return new ResponseEntity<>(end, HttpStatus.OK);
     }
 }

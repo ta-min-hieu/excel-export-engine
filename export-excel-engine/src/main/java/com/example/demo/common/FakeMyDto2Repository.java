@@ -17,7 +17,7 @@ public class FakeMyDto2Repository {
     static {
         Random random = new Random();
 
-        for (long i = 1; i <= 100_000; i++) {
+        for (long i = 1; i <= 1_000; i++) {
             DB.add(new MyDto(
                     i,
                     "user_" + i,
