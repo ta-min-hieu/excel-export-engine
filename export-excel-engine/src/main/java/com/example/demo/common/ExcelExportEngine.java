@@ -37,7 +37,6 @@ public class ExcelExportEngine {
      * Export toàn bộ workbook.
      */
     public void write(WorkbookExport workbookExport) {
-
         Objects.requireNonNull(workbookExport, "WorkbookExport must not be null");
 
         for (SheetExport<?> sheetExport : workbookExport.getSheets())
@@ -89,7 +88,6 @@ public class ExcelExportEngine {
      * Ghi workbook ra OutputStream.
      */
     public void finish(OutputStream os) {
-
         if (sxssfWorkbook == null)
             throw new IllegalStateException("Please call write() before finish().");
 
@@ -124,23 +122,19 @@ public class ExcelExportEngine {
                     continue;
 
                 String text = cell.getStringCellValue();
-
                 Matcher matcher = DATA_PATTERN.matcher(text);
 
                 if (!matcher.matches())
                     continue;
 
                 String expr = matcher.group(1);
-
                 Matcher listMatcher = LIST_PATTERN.matcher(expr);
 
                 if (!listMatcher.matches())
                     throw new RuntimeException("Invalid list expression : " + expr);
 
                 String listName = listMatcher.group(1);
-
                 String fieldName = listMatcher.group(2);
-
                 int rowNum = row.getRowNum();
 
                 if (context.getTemplateRowIndex() == -1)
@@ -318,7 +312,6 @@ public class ExcelExportEngine {
                     Class<?> current = clazz;
 
                     while (current != null && current != Object.class) {
-
                         try {
                             Field field = current.getDeclaredField(fieldName);
                             field.setAccessible(true);
