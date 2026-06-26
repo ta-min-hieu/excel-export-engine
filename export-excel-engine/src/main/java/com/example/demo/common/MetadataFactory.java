@@ -29,14 +29,11 @@ public class MetadataFactory {
             int index = 0;
 
             for (Field f : fields) {
-
                 if (Modifier.isStatic(f.getModifiers()) || Modifier.isTransient(f.getModifiers()))
                     continue;
 
                 f.setAccessible(true);
-
                 MethodHandle getter = lookup.unreflectGetter(f);
-
                 list.add(new ColumnMeta(index++, getter, resolveType(f.getType())));
             }
 
