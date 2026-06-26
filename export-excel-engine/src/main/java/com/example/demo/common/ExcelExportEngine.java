@@ -60,7 +60,6 @@ public class ExcelExportEngine {
     }
 
     private void writeRemainingRows() {
-
         int rowIndex = templateRowIndex + 1;
 
         for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
@@ -81,7 +80,6 @@ public class ExcelExportEngine {
     }
 
     private void writeFirstDataRow() {
-
         Row row = xssfSheet.getRow(templateRowIndex);
 
         if (row == null)
