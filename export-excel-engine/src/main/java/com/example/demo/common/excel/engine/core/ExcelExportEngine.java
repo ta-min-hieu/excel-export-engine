@@ -119,6 +119,8 @@ public class ExcelExportEngine {
                 xssfWorkbook.close();
             } catch (Exception ignore) {}
 
+            fieldCache.clear();
+            sxssfSheets.clear();
             sxssfWorkbook = null;
         }
     }
