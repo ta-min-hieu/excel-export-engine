@@ -4,5 +4,5 @@ spring:
   application:
     name: demo
 export-excel:
-  batch-size: 10000
-  window-size: 5000
+  batch-size: 100000
+  window-size: 10000

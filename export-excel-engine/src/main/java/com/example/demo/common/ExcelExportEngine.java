@@ -23,6 +23,7 @@ public class ExcelExportEngine {
 
     private final ExportConfig config;
     private final Map<Class<?>, Map<String, Field>> fieldCache = new HashMap<>();
+    private final Map<Integer, Sheet> sxssfSheets = new HashMap<>();
 
     public ExcelExportEngine(ExportConfig config, InputStream templateStream) throws Exception {
 
@@ -39,12 +40,16 @@ public class ExcelExportEngine {
     public void write(WorkbookExport workbookExport) {
         Objects.requireNonNull(workbookExport, "WorkbookExport must not be null");
 
-        for (SheetExport<?> sheetExport : workbookExport.getSheets())
-            writeSheet(sheetExport.sheetIndex(), sheetExport.data());
-
         // Sau khi toàn bộ sheet đã được ghi bằng XSSF
         // mới chuyển sang SXSSF để giảm memory khi ghi file.
+
         sxssfWorkbook = new SXSSFWorkbook(xssfWorkbook, config.getWindowSize());
+
+        for (int i = 0; i < xssfWorkbook.getNumberOfSheets(); i++)
+            sxssfSheets.put(i, sxssfWorkbook.getSheetAt(i));
+
+        for (SheetExport<?> sheetExport : workbookExport.getSheets())
+            writeSheet(sheetExport.sheetIndex(), sheetExport.data());
     }
 
     /**
@@ -81,7 +86,7 @@ public class ExcelExportEngine {
         //----------------------------------
         // 5. Remaining rows
         //----------------------------------
-        writeRemainingRows(sheet, context);
+        writeRemainingRows(sheetIndex, context);
     }
 
     /**
@@ -244,19 +249,25 @@ public class ExcelExportEngine {
         }
     }
 
-    private void writeRemainingRows(Sheet sheet, SheetContext context) {
+    private void writeRemainingRows(int sheetIndex, SheetContext context) {
+        Sheet sheet = sxssfSheets.get(sheetIndex);
+
         int rowIndex = context.getTemplateRowIndex() + 1;
 
         Map<String, List<?>> dataCache = context.getListDataCache();
 
         for (Map.Entry<String, List<?>> entry : dataCache.entrySet()) {
+
             List<?> datas = entry.getValue();
 
-            if (datas == null || datas.size() <= 1)
+            if (datas == null || datas.size() <= 1) {
                 continue;
+            }
 
             for (int i = 1; i < datas.size(); i++) {
+
                 Object item = datas.get(i);
+
                 Row row = sheet.createRow(rowIndex++);
 
                 writeDataObject(row, item, entry.getKey(), context);
@@ -265,6 +276,27 @@ public class ExcelExportEngine {
 
         context.setTemplateRowIndex(rowIndex);
     }
+
+//    private void writeRemainingRows2(Sheet sheet, SheetContext context) {
+//        int templateRowIndex = context.getTemplateRowIndex();
+//        int rowIndex = templateRowIndex + 1;
+//
+//        for (Map.Entry<String, List<?>> entry : listDataCache.entrySet()) {
+//
+//            List<?> datas = entry.getValue();
+//
+//            if (datas == null || datas.size() <= 1)
+//                continue;
+//
+//            for (int i = 1; i < datas.size(); i++) {
+//                Object item = datas.get(i);
+//                Row row = sxssfSheet.createRow(rowIndex++);
+//                writeDataObject(row, item, entry.getKey());
+//            }
+//        }
+//
+//        templateRowIndex = rowIndex;
+//    }
 
     private void writeDataObject(Row row, Object item, String listName, SheetContext context) {
         if (item == null)
