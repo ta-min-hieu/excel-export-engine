@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -57,5 +59,67 @@ public class ExportExcelServiceImpl implements ExportExcelService {
             log.error(e.getMessage(), e);
             throw e;
         }
+    }
+
+    public String handleExport1(List<?> sheets) throws Exception {
+        try (
+                InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V4);
+                ByteArrayOutputStream os = new ByteArrayOutputStream()
+        ) {
+
+            WorkbookExport workbook = WorkbookExport.of(sheets);
+
+            ExcelExportEngine engine = new ExcelExportEngine(exportConfig, template);
+
+            engine.write(workbook);
+            engine.finish(os);
+
+            byte[] data = os.toByteArray();
+
+//            return minioService.upload(
+//                    UUID.randomUUID() + ".xlsx",
+//                    new ByteArrayInputStream(data),
+//                    data.length,
+//                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+//            );
+
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            throw e;
+        }
+
+        return null;
+    }
+
+    public String handleExport2(List<?> sheets) throws Exception {
+        Path tempFile = Files.createTempFile("excel-", ".xlsx");
+
+        try (
+                InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V4);
+                OutputStream os = Files.newOutputStream(tempFile)
+        ) {
+
+            WorkbookExport workbook = WorkbookExport.of(sheets);
+
+            ExcelExportEngine engine = new ExcelExportEngine(exportConfig, template);
+
+            engine.write(workbook);
+            engine.finish(os);
+        }
+
+        try (InputStream is = Files.newInputStream(tempFile)) {
+
+//            minioService.upload(
+//                    fileName,
+//                    is,
+//                    Files.size(tempFile),
+//                    EXCEL_CONTENT_TYPE
+//            );
+
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+
+        return null;
     }
 }
