@@ -4,6 +4,7 @@ import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 @Getter
 public class WorkbookExport {
@@ -43,5 +44,15 @@ public class WorkbookExport {
         public WorkbookExport build() {
             return new WorkbookExport(this);
         }
+    }
+
+    public static WorkbookExport of(List<?> sheets) {
+
+        Builder builder = builder();
+
+        IntStream.range(0, sheets.size())
+                .forEach(i -> builder.sheet(i, sheets.get(i)));
+
+        return builder.build();
     }
 }

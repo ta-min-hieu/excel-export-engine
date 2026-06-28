@@ -4,20 +4,18 @@ import com.example.demo.common.excel.engine.config.ExportConfig;
 import com.example.demo.common.excel.engine.core.ExcelExportEngine;
 import com.example.demo.common.excel.engine.core.WorkbookExport;
 import com.example.demo.config.ExcelExportConfig;
-import com.example.demo.dto.MyExport2Dto;
-import com.example.demo.dto.MyExportDto;
-import com.example.demo.repository.FakeMyDto2Repository;
-import com.example.demo.repository.FakeMyDtoRepository;
 import com.example.demo.ultils.TemplateConstants;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.time.LocalDate;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 import java.util.UUID;
 
 @Log4j2
@@ -32,40 +30,29 @@ public class ExportExcelServiceImpl implements ExportExcelService {
     @PostConstruct
     public void init() {
         exportConfig = new ExportConfig();
-//        exportConfig.setBatchSize(excelExportConfig.getBatchSize());
         exportConfig.setWindowSize(excelExportConfig.getWindowSize());
     }
 
     @Override
-    public void handleExport() throws Exception {
-        try (
-                InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V4);
-                OutputStream os = new FileOutputStream(FILE_PATH + UUID.randomUUID() + ".xlsx");
-        ) {
-            FakeMyDtoRepository repo = new FakeMyDtoRepository();
-            FakeMyDto2Repository repo2 = new FakeMyDto2Repository();
+    public void handleExport(List<?> sheets) throws Exception {
+        try {
+            Path outputDir = Paths.get(FILE_PATH);
+            Files.createDirectories(outputDir);
 
-            MyExportDto dto1 = new MyExportDto();
-            dto1.setStartDate(LocalDate.now().minusDays(1));
-            dto1.setEndDate(LocalDate.now());
-            dto1.setDatas(repo.fetchBatch(0, excelExportConfig.getBatchSize()));
+            try (
+                    InputStream template = getClass().getResourceAsStream(TemplateConstants.TEMPLATE_PATH_TEST_V4);
+                    OutputStream os = Files.newOutputStream(outputDir.resolve(UUID.randomUUID() + ".xlsx"))
+            ) {
+                WorkbookExport workbook = WorkbookExport.of(sheets);
 
-            MyExport2Dto dto2 = new MyExport2Dto();
-            dto2.setName("hieu.tm");
-            dto2.setD(repo2.fetchBatch(0, excelExportConfig.getBatchSize()));
+                ExcelExportEngine engine = new ExcelExportEngine(exportConfig, template);
 
-            // =========================
-            // BUILD WORKBOOK EXPORT
-            // =========================
-            WorkbookExport workbook = WorkbookExport.builder()
-                    .sheet(0, dto1)
-                    .sheet(1, dto2)
-                    .build();
-
-            ExcelExportEngine engine = new ExcelExportEngine(exportConfig, template);
-
-            engine.write(workbook);
-            engine.finish(os);
+                engine.write(workbook);
+                engine.finish(os);
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+                throw e;
+            }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             throw e;
